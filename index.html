@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="orgApp">
+<head>
+    <meta charset="UTF-8">
+    <title>Organization Chart Test</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular-drag-and-drop-lists/2.1.0/angular-drag-and-drop-lists.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js"></script>
+</head>
+
+<body ng-controller="OrgController">
+    <div class="top-bar"></div>
+    <div class="main-container">
+        <div class="org-container">
+        <svg class="connector-layer">
+            <path ng-repeat="line in connections"
+                ng-attr-d="{{line.path}}"
+                ng-attr-stroke="{{line.color}}"
+                stroke-width="2"
+                fill="none"></path>
+        </svg>
+
+        <div class="level-box" ng-repeat="level in levels track by level.level">
+            <div class="level-header">
+                <span>Level {{level.level}}</span>
+                <span class="close-level" ng-click="removeLevel(level)">x</span>
+            </div>
+
+            <div class="level-underline"></div>
+
+            <div class="level-body"
+                dnd-list="level.nodes"
+                dnd-drop="onDrop(item, level)">
+
+            <div class="empty-text"ng-if="level.nodes.length === 0">ลากรายการมาวางที่นี่</div>
+
+            <div class="level-nodes">
+                <div class="node"
+                    id="node-{{node.id}}"
+                    ng-repeat="node in level.nodes"
+                    dnd-nodrag
+                    ng-mouseenter="hoverNode = node"
+                    ng-mouseleave="hoverNode = null"
+                    ng-class="{ active: hoverNode && hoverNode.id === node.id,
+                        parent: hoverNode && node.id === hoverNode.parentId,
+                        child: hoverNode && node.parentId === hoverNode.id }"
+                    ng-style="{'border-bottom': '4px solid ' + node.color}">
+
+                    <div class="node-title">{{node.name}}</div>
+                    <div class="node-parent" ng-if="node.parentName"> Parent: {{node.parentName}} </div>
+                        
+                    <button class="delete-btn"
+                        type="button"
+                        ng-show="hoverNode && hoverNode.id === node.id"
+                        ng-click="$event.stopPropagation(); confirmDelete(node)"> ×
+                    </button>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <div class="bottom-actions">
+            <button class="add-level-btn"
+                    ng-click="addLevel()">+</button>
+
+            <button class="save-btn">Save all</button>
+        </div>
+        </div>
+
+        <div class="position-container">
+
+        <div class="position-header">
+            <span>Positions</span>
+            <button class="add-position-btn"
+                    ng-click="openPositionModal()">+</button>
+        </div>
+
+        <div class="position-divider"></div>
+
+        <div class="position-list">
+            <div class="position-item"
+                ng-repeat="p in positions"
+                dnd-draggable="p"
+                dnd-effect-allowed="move"> {{p.name}}
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop"ng-if="showPositionModal">
+        <form class="modal"
+            name="positionForm"
+            novalidate
+            ng-submit="createPosition(positionForm)">
+
+        <h3>Create New Position</h3>
+
+        <div class="modal-body">
+            <label>Name 
+            <span class="required" 
+                ng-if="positionForm.$submitted && positionForm.name.$invalid">*</span>
+            </label>
+            <input type="text" name="name" ng-model="newPosition.name" required>
+
+            <label>Name (Thai)</label>
+            <input type="text">
+
+            <label>Name (Chinese)</label>
+            <input type="text">
+
+            <label>Name (Vietnamese)</label>
+            <input type="text">
+
+            <label>Selection</label>
+            <select>
+                <option value="">Select</option>
+            </select>
+
+            <label>Salary Type
+            <span class="required"
+                ng-if="positionForm.$submitted && positionForm.salary.$invalid">*</span>
+            </label>
+
+            <div class="radio-row" ng-class="{'input-error': positionForm.$submitted && positionForm.salary.$invalid}">
+                <label>
+                    <input type="radio" 
+                        name="salary" 
+                        ng-model="newPosition.salaryType" 
+                        value="normal" 
+                        required>Normal
+                </label>
+
+                <label>
+                    <input type="radio"
+                        name="salary"
+                        ng-model="newPosition.salaryType"
+                        value="commission"
+                        required>Commission
+                </label>
+            </div>
+        </div>
+
+        <div class="modal-divider"></div>
+
+        <div class="modal-actions">
+            <button class="cancel-btn"
+                    ng-click="closePositionModal()">Cancel</button>
+
+            <button class="create-btn" class="create-btn">+ Create</button>
+        </div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" ng-if="showParentModal">
+        <div class="modal">
+            <h3>Select Parent for <strong>{{ draggingItemName }}</strong></h3>
+            <p class="sub-text" ng-if="!parentSelection.selected">
+                Please select a parent node from level {{ targetLevel - 1 }}
+            </p>
+            <p class="sub-text success" ng-if="parentSelection.selected">
+                Selected parent: <strong>{{ parentSelection.selected.name }}</strong>
+            </p>
+
+            <div class="parent-list">
+                <div class="parent-item"
+                    ng-repeat="p in parentCandidates"
+                    ng-class="{active: parentSelection.selected === p}"
+                    ng-click="parentSelection.selected = p"> {{p.name}}
+                </div>
+            </div>  
+
+            <div class="modal-divider"></div>
+            <h4>Permissions</h4>
+            <div class="permission-grid">
+                <label>
+                    <input type="checkbox" ng-model="pendingDrop.item.permissions.approveLeave"> Approve Leave
+                </label>
+
+                <label>
+                    <input type="checkbox" ng-model="pendingDrop.item.permissions.viewLeave"> View Leave
+                </label>
+
+                <label>
+                    <input type="checkbox" ng-model="pendingDrop.item.permissions.approveExpense"> Approve Expense
+                </label>
+
+                <label>
+                    <input type="checkbox" ng-model="pendingDrop.item.permissions.viewExpense"> View Expense
+                </label>
+            </div>
+
+            <div class="modal-divider"></div>
+
+            <div class="modal-actions">
+                <button type="button" class="cancel-btn" ng-click="closeParentModal()"> Cancel </button>
+                <button type="button" class="create-btn" ng-disabled="!parentSelection.selected" ng-click="confirmParent()"> Confirm </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal-backdrop" ng-if="showNoParentModal">
+        <div class="modal">
+            <h3>Error</h3>
+            <p>No parent node available in Level {{noParentLevel}}</p>
+            <div class="modal-actions">
+                <button class="create-btn" ng-click="closeNoParentModal()">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" ng-if="showDeleteModal">
+        <div class="modal delete-modal">
+
+            <div class="delete-header">
+                <div class="delete-icon">⚠️</div>
+                <div class="delete-title"> Delete {{nodeToDelete.name}} </div>
+                <div class="delete-close" ng-click="cancelDelete()">✕</div>
+            </div>
+
+            <div class="delete-message"> Are you sure you want to delete 
+                <strong>{{nodeToDelete.name}}</strong>
+                <span ng-if="deleteChildrenCount > 0">
+                    (and {{deleteChildrenCount}} sub-items)
+                </span>
+                ? All related items will be moved back to Hire Positions.
+            </div>
+
+            <div class="delete-divider"></div>
+
+            <div class="modal-actions delete-actions">
+                <button class="cancel-btn" ng-click="cancelDelete()">No</button>
+                <button class="create-btn" ng-click="confirmDeleteYes()">Yes</button>
+            </div>
+
+        </div>
+    </div>
+</body>
+</html>
